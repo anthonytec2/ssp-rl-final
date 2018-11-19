@@ -2,6 +2,19 @@
 
 ![Alt text](http://abisulco.com/img/cartpole.gif)
 
+## Setup on Mac
+1)  `xcode-select --install`
+2) Have [homebrew](https://brew.sh/) installed as your Mac package manager 
+```
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+```
+3) Should you need to install Python `brew install python`
+4) `brew install pipenv`
+5)  `brew install cmake boost boost-python sdl2 swig wget`
+6) `pipenv install`
+7) `pipenv shell`
+
+
 ## Resources
 - UC Berkeley Reinforcement Learning [Policy Gradient Lecture](https://bit.ly/2PCRpG0)
 - [Blog post](https://medium.freecodecamp.org/an-introduction-to-policy-gradients-with-cartpole-and-doom-495b5ef2207f) related to policy gradient method in tensorflow
