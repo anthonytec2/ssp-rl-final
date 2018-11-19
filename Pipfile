@@ -19,6 +19,9 @@ matplotlib = "*"
 dask = "*"
 pillow-simd = "*"
 distributed = "*"
+tensorboard = "*"
+tensorboardx = "*"
+wandb = "*"
 
 [requires]
 python_version = "3.7"
