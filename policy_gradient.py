@@ -1,6 +1,7 @@
 import gym
 import model
 import torch
+import numpy as np
 
 net = model.pg_model()
 optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.8)
