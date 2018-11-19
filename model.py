@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class pg_model(nn.module):
+class pg_model(nn.Module):
     def __init__(self):
         super(pg_model, self).__init__()
         self.l1 = nn.Linear(4, 10)

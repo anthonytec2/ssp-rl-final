@@ -8,7 +8,7 @@ loss_fn = torch.nn.CrossEntropyLoss()
 NUM_EPSIODES = 1000
 
 env = gym.make('CartPole-v0')
-for i in NUM_EPSIODES:
+for i in range(NUM_EPSIODES):
     env.reset()
     not_done = False
     env.reset()
