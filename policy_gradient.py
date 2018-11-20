@@ -5,13 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import wandb
 import os
-
-
-def simulate_action(action_prob):
-    # print(action_prob)
-    action_take = torch.bernoulli(action_prob[0][0])
-    return action_take
-
+import argparse
 
 def discount_and_normalize(reward_list, gamma=.99):
     discounted_reward_list = torch.zeros(len(reward_list))
@@ -23,15 +17,24 @@ def discount_and_normalize(reward_list, gamma=.99):
         discounted_reward_list-torch.mean(discounted_reward_list))/torch.std(discounted_reward_list)
     return discounted_reward_list
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--lr', type=float, default=.001, metavar='N',
+                    help='Learning Rate for optimizer')
+parser.add_argument('--gamma', type=float, default=.99, metavar='N',
+                    help='Learning Rate for optimizer')
+parser.add_argument('--epsiodes', type=int, default=3000, metavar='N',
+                    help='Number of Epsiodes to roll out over')
+args = parser.parse_args()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 net = model.pg_model().to(device)
-optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
-NUM_EPSIODES = 10000
+optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
+NUM_EPSIODES = args.epsiodes
 SAVE_TIME = 10
-#writer = SummaryWriter()
 env = gym.make('CartPole-v1')
 wandb.init()
+wandb.config.update(args)
 wandb.hook_torch(net)
+weight_updates = 0
 for i in range(NUM_EPSIODES):
     env.reset()
     done = False
@@ -39,24 +42,21 @@ for i in range(NUM_EPSIODES):
     reward_holder = []
     action_holder = []
     observation = torch.tensor([0, 0, 0, 0]).float()
-    w = 0
-    k = 0
+    epsiode_length=0
     while not done:
-        #env.render(mode='rgb_array')
-        #print(observation)
+        # env.render(mode='rgb_array')
         action = net(observation.unsqueeze(0).to(device))
         state_holder.append(observation)
         act = torch.distributions.categorical.Categorical(action).sample()
-        # torch.tensor([1, 0] if act else [0, 1])
         action_holder.append(act.item())
         observation, reward, done, info = env.step(action_holder[-1])
         observation = torch.tensor(observation).float()
         reward_holder.append(reward)
-        k += 1
-    if w % 100:
-        torch.save(net, os.path.join(wandb.run.dir, "model.pt"))
-    wandb.log({'cumm_reward': sum(reward_holder), 'eps_len': k})
-    dr = discount_and_normalize(reward_holder, gamma=.99).to(device)
+        epsiode_length+=1
+    if weight_updates % 100:
+        torch.save(net.state_dict(), os.path.join(wandb.run.dir, "model.pt"))
+    wandb.log({'cumm_reward': sum(reward_holder), 'eps_len': epsiode_length})
+    dr = discount_and_normalize(reward_holder, gamma=args.gamma).to(device)
     state_batch_run = torch.stack(state_holder).to(device)
     action_batch = torch.tensor(action_holder).to(device)
     y_pred = net(state_batch_run)
@@ -66,4 +66,4 @@ for i in range(NUM_EPSIODES):
     final_loss = torch.sum(-res*dr)
     final_loss.backward()
     optimizer.step()
-    w += 1
+    weight_updates += 1
