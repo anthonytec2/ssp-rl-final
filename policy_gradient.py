@@ -23,10 +23,9 @@ def discount_and_normalize(reward_list, gamma=.99):
         discounted_reward_list-torch.mean(discounted_reward_list))/torch.std(discounted_reward_list)
     return discounted_reward_list
 
-
-net = model.pg_model()
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+net = model.pg_model().to(device)
 optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
-#loss_fn = torch.nn.CrossEntropyLoss(reduce=False)
 NUM_EPSIODES = 10000
 SAVE_TIME = 10
 #writer = SummaryWriter()
@@ -43,9 +42,9 @@ for i in range(NUM_EPSIODES):
     w = 0
     k = 0
     while not done:
-        env.render(mode='rgb_array')
-        # print(observation)
-        action = net(observation.unsqueeze(0))
+        #env.render(mode='rgb_array')
+        #print(observation)
+        action = net(observation.unsqueeze(0).to(device))
         state_holder.append(observation)
         act = torch.distributions.categorical.Categorical(action).sample()
         # torch.tensor([1, 0] if act else [0, 1])
@@ -57,9 +56,9 @@ for i in range(NUM_EPSIODES):
     if w % 100:
         torch.save(net, os.path.join(wandb.run.dir, "model.pt"))
     wandb.log({'cumm_reward': sum(reward_holder), 'eps_len': k})
-    dr = discount_and_normalize(reward_holder, gamma=.9)
-    state_batch_run = torch.stack(state_holder)
-    action_batch = torch.tensor(action_holder)
+    dr = discount_and_normalize(reward_holder, gamma=.99).to(device)
+    state_batch_run = torch.stack(state_holder).to(device)
+    action_batch = torch.tensor(action_holder).to(device)
     y_pred = net(state_batch_run)
     res = torch.distributions.categorical.Categorical(
         y_pred).log_prob(action_batch)
