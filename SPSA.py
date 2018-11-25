@@ -6,6 +6,8 @@ import torch.nn.functional as F
 import tensorboard
 import os
 import argparse
+from noisyopt import minimizeSPSA
+import wandb
 
 
 def discount_and_normalize(reward_list, gamma=.99):
@@ -29,7 +31,11 @@ def run_network(w1, w2, w3, x):
     return output
 
 
-def run_batch(w1, w2, w3, env):
+def run_batch(w):
+    env.reset()
+    w1 = torch.reshape(torch.tensor(w[0:40]).float(), (4, 10))
+    w2 = torch.reshape(torch.tensor(w[40:60]).float(), (10, 2))
+    w3 = torch.reshape(torch.tensor(w[60:]).float(), (2, 2))
     done = False
     state_holder = []  # Holds all the states for a single iteration
     reward_holder = []  # Holds all the rewards for an episodes
@@ -51,49 +57,28 @@ def run_batch(w1, w2, w3, env):
         rounds += 1
      # Discount and Normalize the reward returns
     dr = discount_and_normalize(reward_holder, gamma=.99)
-    # Run previous states through model, pick action, take log prob, mutiply by reward
-    state_batch_run = torch.stack(state_holder)
-    action_batch = torch.tensor(action_holder)
-    probs = run_network(w1, w2, w3, state_batch_run)
-    res = torch.distributions.categorical.Categorical(
-        probs).log_prob(action_batch)
-    final_loss = torch.sum(res*dr)
-    return final_loss, rounds, sum(reward_holder)
+
+    return -float(dr[0]), rounds, sum(reward_holder)
 
 
-def perb():
-    d1 = torch.randint(low=0, high=1, size=(4, 10))
-    d2 = torch.randint(low=0, high=1, size=(10, 2))
-    d3 = torch.randint(low=0, high=1, size=(2, 2))
-    d1[d1 == 0] = -1
-    d2[d2 == 0] = -1
-    d3[d3 == 0] = -1
-    return d1, d2, d3
-
-
-w1 = torch.randn(4, 10)
-w2 = torch.randn(10, 2)
-w3 = torch.randn(2, 2)
-lr = 1e-1
-Grad = 1
-gam = .99
-Epsilon = .99
+wandb.init()
 env = gym.make('CartPole-v1')
-for i in range(100):
-    d1, d2, d3 = perb()
-    env.reset()
-    l1, rounds1, rew1 = run_batch(w1+Grad*d1, w2+Grad*d2, w3+Grad*d3, env)
-    env.reset()
-    l2, rounds2, rew2 = run_batch(w1-Grad*d1, w2-Grad*d2, w3-Grad*d3, env)
-    print(rounds1, rew1, rounds2, rew2)
-    alpha = ((l2-l1)/(2*Grad))
-    g1 = alpha*d1
-    g2 = alpha*d2
-    g3 = alpha*d3
-    print(Grad, Epsilon)
-    Grad = Grad/(i+1)**gam
-    w1 -= lr*g1
-    w2 -= lr*g2
-    w3 -= lr*g3
-    lr = lr/(i+1)**Epsilon
-env.close()
+w = torch.randn(64, 1).numpy()
+niter = 1000
+A = 0.01 * niter
+c = 1.0
+a = 1.0
+gamma = 0.101
+alpha = 0.602
+hisory = []
+for i in range(niter):
+    ak = a/(i+1.0+A)**alpha
+    ck = c/(i+1.0)**gamma
+    theta = torch.randint(low=0, high=2, size=(64, 1))
+    theta[theta == 0] = -1
+    l1, r1, rr1 = run_batch(w+ck*theta)
+    l2, r2, rr2 = run_batch(w-ck*theta)
+    g = (l1-l2)/(2*ck*theta)
+    wandb.log({'cumm_reward': (rr1+rr2)/2, 'eps_len': (r1+r2)/2})
+    w -= ak*g
+print(run_batch(w))
