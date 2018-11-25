@@ -7,6 +7,7 @@ import tensorboard
 import os
 import argparse
 from noisyopt import minimizeSPSA
+import wandb
 
 
 def discount_and_normalize(reward_list, gamma=.99):
@@ -57,49 +58,27 @@ def run_batch(w):
      # Discount and Normalize the reward returns
     dr = discount_and_normalize(reward_holder, gamma=.99)
 
-    return -float(dr[0])  # , rounds, sum(reward_holder)
+    return -float(dr[0]), rounds, sum(reward_holder)
 
 
-w = torch.randn(64).numpy()
-lr = 1e-3
+wandb.init()
 env = gym.make('CartPole-v1')
-Grad = .1
-'''
-for i in range(100):
-    theta = torch.randint(low=0, high=1, size=(64, 1))
+w = torch.randn(64, 1).numpy()
+niter = 1000
+A = 0.01 * niter
+c = 1.0
+a = 1.0
+gamma = 0.101
+alpha = 0.602
+hisory = []
+for i in range(niter):
+    ak = a/(i+1.0+A)**alpha
+    ck = c/(i+1.0)**gamma
+    theta = torch.randint(low=0, high=2, size=(64, 1))
     theta[theta == 0] = -1
-    l1, rounds1, rew1 = run_batch(w+Grad*theta, env)
-    l2, rounds2, rew2 = run_batch(w-Grad*theta, env)
-    print(rounds1, rew1, rounds2, rew2)
-    del_j = l1-l2
-    g = del_j/(2*Grad)
-    w += lr*g_fd
-'''
-res = minimizeSPSA(run_batch, w, paired=False, niter=1000)
-print(res)
-w = res.x
-env.reset()
-w1 = torch.reshape(torch.tensor(w[0:40]).float(), (4, 10))
-w2 = torch.reshape(torch.tensor(w[40:60]).float(), (10, 2))
-w3 = torch.reshape(torch.tensor(w[60:]).float(), (2, 2))
-done = False
-state_holder = []  # Holds all the states for a single iteration
-reward_holder = []  # Holds all the rewards for an episodes
-action_holder = []  # Hold all the action for an episode
-observation = torch.tensor([0, 0, 0, 0]).float()
-rounds = 0
-while not done:
-        # env.render(mode='rgb_array')
-        # Run Observation through network, get probs
-    action = run_network(w1, w2, w3, observation.unsqueeze(0))
-    # Sample probs to find what action to take
-    state_holder.append(observation)
-    act = torch.distributions.categorical.Categorical(action).sample()
-    action_holder.append(act.item())
-    # Perform a step with given action and continue trajectory
-    observation, reward, done, info = env.step(action_holder[-1])
-    env.render()
-    observation = torch.tensor(observation).float()
-    reward_holder.append(reward)
-    rounds += 1
-env.close()
+    l1, r1, rr1 = run_batch(w+ck*theta)
+    l2, r2, rr2 = run_batch(w-ck*theta)
+    g = (l1-l2)/(2*ck*theta)
+    wandb.log({'cumm_reward': (rr1+rr2)/2, 'eps_len': (r1+r2)/2})
+    w -= ak*g
+print(run_batch(w))
